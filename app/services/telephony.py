@@ -3,6 +3,9 @@ from typing import Dict, Any
 
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse
+from twilio.base.exceptions import TwilioException
+
+from app.logging_config import logger
 
 class TelephonyService:
     """Twilio/Vapi telephony integration used for outbound and inbound calls."""
@@ -28,9 +31,15 @@ class TelephonyService:
             vr.connect().stream(url=self.stream_url)
         vr.say(prompt)
 
-        call = self._client.calls.create(
-            twiml=str(vr), to=phone_number, from_=self.caller_id
-        )
+        try:
+            call = self._client.calls.create(
+                twiml=str(vr), to=phone_number, from_=self.caller_id
+            )
+        except TwilioException as e:
+            logger.warning(f"Outbound call failed: {e}. Retrying once")
+            call = self._client.calls.create(
+                twiml=str(vr), to=phone_number, from_=self.caller_id
+            )
 
         return {
             "status": "started",

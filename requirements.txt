@@ -10,4 +10,7 @@ requests
 openai
 deepgram-sdk
 twilio
+opentelemetry-sdk
+opentelemetry-instrumentation-fastapi
+
 

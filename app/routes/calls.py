@@ -14,6 +14,8 @@ from app.config import get_default_locale
 from app.models.db import SessionLocal, Conversation
 from datetime import datetime
 
+PROCESSED_WEBHOOKS: set[str] = set()
+
 router = APIRouter()
 
 
@@ -109,13 +111,27 @@ async def inbound_call(payload: InboundCallRequest):
 async def inbound_twilio(request: Request) -> Response:
     form = await request.form()
     event = dict(form)
+    request_id = event.get("CallSid")
+    if request_id and request_id in PROCESSED_WEBHOOKS:
+        return Response(content="", media_type="application/xml")
+    if request_id:
+        PROCESSED_WEBHOOKS.add(request_id)
     telephony = TelephonyService()
     twiml = await telephony.handle_inbound_call(event)
     return Response(content=twiml, media_type="application/xml")
 
 @router.post("/webhook/vapi")
 async def inbound_vapi(request: Request) -> Response:
-    return await inbound_twilio(request)
+    form = await request.form()
+    event = dict(form)
+    request_id = event.get("id") or event.get("call_id")
+    if request_id and request_id in PROCESSED_WEBHOOKS:
+        return Response(content="", media_type="application/xml")
+    if request_id:
+        PROCESSED_WEBHOOKS.add(request_id)
+    telephony = TelephonyService()
+    twiml = await telephony.handle_inbound_call(event)
+    return Response(content=twiml, media_type="application/xml")
 
 class TicketResponse(BaseModel):
     id: int

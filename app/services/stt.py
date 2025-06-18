@@ -1,5 +1,6 @@
 import os
-from typing import Optional
+from typing import Optional, List
+import tempfile
 
 from app.config import get_default_locale
 
@@ -47,4 +48,24 @@ class STTClient:
             response = self._client.transcription.sync_prerecorded(source, options)
             return response["results"]["channels"][0]["alternatives"][0]["transcript"]
         raise RuntimeError("Unhandled STT provider")
+
+
+class STTStreamListener:
+    """Utility class to accumulate audio chunks and transcribe when finished."""
+
+    def __init__(self, provider: Optional[str] = None, locale: Optional[str] = None) -> None:
+        self.locale = locale
+        self.provider = provider
+        self._chunks: List[bytes] = []
+
+    def feed_chunk(self, data: bytes) -> None:
+        self._chunks.append(data)
+
+    def finish(self) -> str:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            for chunk in self._chunks:
+                tmp.write(chunk)
+            path = tmp.name
+        client = STTClient(provider=self.provider, locale=self.locale)
+        return client.transcribe(path)
 
