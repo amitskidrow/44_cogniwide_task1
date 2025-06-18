@@ -3,7 +3,11 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from app.services.telephony import TelephonyService
-from app.models.db import SessionLocal, Conversation
+from app.services.tts import TTSClient
+from app.services.stt import STTClient
+from app.services.intent import IntentClassifier
+from app.config import get_default_locale
+from app.models.db import SessionLocal, Conversation, Ticket
 from datetime import datetime
 
 router = APIRouter()
@@ -13,29 +17,69 @@ class OutboundCallRequest(BaseModel):
     phone: str
     prompt: str
     metadata: Optional[Dict[str, Any]] = None
-    locale: Optional[str] = "en-US"
+    locale: Optional[str] = None
 
 
 @router.post("/call/outbound")
 async def call_outbound(payload: OutboundCallRequest):
+    locale = payload.locale or get_default_locale()
     telephony = TelephonyService()
-    result = await telephony.start_outbound_call(
-        payload.phone, payload.prompt, payload.metadata
-    )
-
+    await telephony.start_outbound_call(payload.phone, payload.prompt, payload.metadata)
     session = SessionLocal()
     conv = Conversation(
         phone=payload.phone,
         direction="OUTBOUND",
-        locale=payload.locale,
-        start_ts=datetime.utcnow(),
-        status="OPEN",
+        locale=locale,
+        start_ts=datetime.utcnow()
+    )
+    session.add(conv)
+    session.commit()
+
+    tts = TTSClient(locale=locale)
+    audio_bytes = tts.synthesize(payload.prompt)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        tmp.write(audio_bytes)
+        audio_path = tmp.name
+
+    stt = STTClient(locale=locale)
+    transcript = stt.transcribe(audio_path)
+    intent = IntentClassifier().classify(transcript)
+
+    conv.transcript = transcript
+    conv.intents = [intent]
+    conv.end_ts = datetime.utcnow()
+    conv.status = "CLOSED"
+    session.add(conv)
+    session.commit()
+
+    return {"conversation_id": conv.id, "intent": intent}
+
+
+class InboundCallRequest(BaseModel):
+    phone: str
+    recording_url: str
+    locale: Optional[str] = None
+
+
+@router.post("/webhook/twilio")
+async def inbound_twilio(payload: InboundCallRequest):
+    locale = payload.locale or get_default_locale()
+    session = SessionLocal()
+    conv = Conversation(
+        phone=payload.phone,
+        direction="INBOUND",
+        locale=locale,
+        start_ts=datetime.utcnow()
+
     )
     session.add(conv)
     session.commit()
 
     return {"conversation_id": conv.id, "call_sid": result.get("sid")}
 
+    stt = STTClient(locale=locale)
+    transcript = stt.transcribe(audio_path)
+    intent = IntentClassifier().classify(transcript)
 
 @router.post("/webhook/twilio")
 async def inbound_twilio(request: Request) -> Response:

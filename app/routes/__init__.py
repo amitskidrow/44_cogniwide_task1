@@ -1,3 +1,3 @@
-from . import calls
+from . import calls, config
 
-__all__ = ["calls"]
+__all__ = ["calls", "config"]
