@@ -6,4 +6,8 @@ python-dotenv
 uvicorn
 loguru
 prometheus_fastapi_instrumentator
+twilio
+openai
+deepgram-sdk
+requests
 
