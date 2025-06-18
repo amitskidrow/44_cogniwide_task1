@@ -2,15 +2,16 @@ from typing import Optional, Dict, Any, List
 import tempfile
 
 import requests
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+
+from app.models.db import SessionLocal, Conversation, Ticket
 
 from app.logging_config import logger
 from app.services.telephony import TelephonyService
 from app.services.tts import TTSClient
 from app.services.stt import STTClient
 from app.services.intent import IntentClassifier
-from app.models.db import SessionLocal, Conversation, Ticket
 from datetime import datetime
 
 router = APIRouter()
@@ -32,7 +33,7 @@ async def call_outbound(payload: OutboundCallRequest):
         phone=payload.phone,
         direction="OUTBOUND",
         locale=payload.locale,
-        start_ts=datetime.utcnow()
+        start_ts=datetime.utcnow(),
     )
     session.add(conv)
     session.commit()
@@ -57,56 +58,103 @@ async def call_outbound(payload: OutboundCallRequest):
     return {"conversation_id": conv.id, "intent": intent}
 
 
-class InboundCallRequest(BaseModel):
-    phone: str
-    recording_url: str
-    locale: Optional[str] = "en-US"
-
-
-@router.post("/webhook/twilio")
-async def inbound_twilio(payload: InboundCallRequest):
+def _process_inbound_call(
+    phone: str,
+    provider_id: str,
+    recording_url: str | None,
+    transcript: str | None,
+    locale: str,
+) -> Dict[str, Any]:
+    """Create/update Conversation and Ticket based on inbound payload."""
     session = SessionLocal()
-    conv = Conversation(
-        phone=payload.phone,
-        direction="INBOUND",
-        locale=payload.locale,
-        start_ts=datetime.utcnow()
-    )
-    session.add(conv)
-    session.commit()
+    conv = session.query(Conversation).filter_by(external_id=provider_id).first()
+    if not conv:
+        conv = Conversation(
+            phone=phone,
+            direction="INBOUND",
+            locale=locale,
+            external_id=provider_id,
+            start_ts=datetime.utcnow(),
+            updated_ts=datetime.utcnow(),
+        )
+        session.add(conv)
+        session.commit()
+    else:
+        conv.updated_ts = datetime.utcnow()
 
-    response = requests.get(payload.recording_url)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-        tmp.write(response.content)
-        audio_path = tmp.name
+    if recording_url and not transcript:
+        response = requests.get(recording_url)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            tmp.write(response.content)
+            audio_path = tmp.name
+        stt = STTClient(locale=locale)
+        transcript = stt.transcribe(audio_path)
 
-    stt = STTClient(locale=payload.locale)
-    transcript = stt.transcribe(audio_path)
-    intent = IntentClassifier().classify(transcript)
-
-    conv.transcript = transcript
+    if transcript:
+        conv.transcript = transcript
+        intent = IntentClassifier().classify(transcript)
+    else:
+        intent = "OTHER"
     conv.intents = [intent]
     conv.end_ts = datetime.utcnow()
-    conv.status = "OPEN"
+    conv.status = "CLOSED" if intent != "LIVE_AGENT" else "OPEN"
     session.add(conv)
     session.commit()
 
     if intent != "LIVE_AGENT":
-        ticket = Ticket(
-            conversation_id=conv.id,
-            category=intent,
-            status="OPEN",
-            created_ts=datetime.utcnow()
-        )
-        session.add(ticket)
+        ticket = session.query(Ticket).filter(Ticket.conversation_id == conv.id).first()
+        if not ticket:
+            ticket = Ticket(
+                conversation_id=conv.id,
+                category=intent,
+                status="OPEN",
+                created_ts=datetime.utcnow(),
+                updated_ts=datetime.utcnow(),
+            )
+            session.add(ticket)
+        else:
+            ticket.category = intent
+            ticket.status = "OPEN"
+            ticket.updated_ts = datetime.utcnow()
         session.commit()
         return {"ticket_id": ticket.id, "status": "ticket_created", "intent": intent}
 
+    session.commit()
     return {"status": "handoff", "message": "Routed to live agent simulator"}
 
+
+@router.post("/webhook/twilio")
+async def inbound_twilio(request: Request):
+    if request.headers.get("content-type", "").startswith("application/json"):
+        data = await request.json()
+    else:
+        data = await request.form()
+
+    phone = data.get("From") or data.get("from")
+    call_sid = data.get("CallSid") or data.get("call_sid")
+    recording_url = data.get("RecordingUrl") or data.get("recording_url")
+    transcript = (
+        data.get("TranscriptionText")
+        or data.get("SpeechResult")
+        or data.get("transcript")
+    )
+    locale = data.get("Language", "en-US")
+
+    return _process_inbound_call(phone, call_sid, recording_url, transcript, locale)
+
+
 @router.post("/webhook/vapi")
-async def inbound_vapi(payload: InboundCallRequest):
-    return await inbound_twilio(payload)
+async def inbound_vapi(request: Request):
+    data = await request.json()
+
+    phone = data.get("from") or data.get("phone")
+    call_id = data.get("call_id") or data.get("id")
+    recording_url = data.get("recordingUrl") or data.get("recording_url")
+    transcript = data.get("transcript")
+    locale = data.get("language", "en-US")
+
+    return _process_inbound_call(phone, call_id, recording_url, transcript, locale)
+
 
 class TicketResponse(BaseModel):
     id: int
@@ -118,6 +166,7 @@ class TicketResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
 
 class ConversationResponse(BaseModel):
     id: int
@@ -134,10 +183,13 @@ class ConversationResponse(BaseModel):
     class Config:
         orm_mode = True
 
+
 @router.get("/conversation/{conversation_id}", response_model=ConversationResponse)
 async def get_conversation(conversation_id: int):
     session = SessionLocal()
-    conv = session.query(Conversation).filter(Conversation.id == conversation_id).first()
+    conv = (
+        session.query(Conversation).filter(Conversation.id == conversation_id).first()
+    )
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return conv

@@ -1,10 +1,20 @@
 import os
+from datetime import datetime
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Enum, DateTime, ForeignKey, Text, JSON
+    create_engine,
+    Column,
+    Integer,
+    String,
+    Enum,
+    DateTime,
+    ForeignKey,
+    Text,
+    JSON,
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 Base = declarative_base()
+
 
 class Conversation(Base):
     """Database model for a phone conversation."""
@@ -15,8 +25,10 @@ class Conversation(Base):
     phone = Column(String(20))
     direction = Column(Enum("INBOUND", "OUTBOUND", name="direction_enum"))
     locale = Column(String(10), default="en-US")
+    external_id = Column(String(100), unique=True)
     start_ts = Column(DateTime)
     end_ts = Column(DateTime)
+    updated_ts = Column(DateTime, default=datetime.utcnow)
     transcript = Column(Text)
     intents = Column(JSON)
     status = Column(Enum("OPEN", "CLOSED", name="conversation_status"), default="OPEN")
@@ -32,19 +44,17 @@ class Ticket(Base):
     id = Column(Integer, primary_key=True)
     conversation_id = Column(Integer, ForeignKey("conversations.id"))
     category = Column(String(100))
-    status = Column(Enum(
-        "OPEN",
-        "RESOLVED",
-        "ESCALATED",
-        name="ticket_status"
-    ), default="OPEN")
+    status = Column(
+        Enum("OPEN", "RESOLVED", "ESCALATED", name="ticket_status"), default="OPEN"
+    )
     created_ts = Column(DateTime)
     resolved_ts = Column(DateTime)
+    updated_ts = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("Conversation", back_populates="tickets")
 
 
-def get_engine() -> 'Engine':
+def get_engine() -> "Engine":
     """Create a SQLAlchemy engine.
 
     Uses the DATABASE_URL environment variable if set. Falls back to
@@ -53,6 +63,7 @@ def get_engine() -> 'Engine':
     db_url = os.getenv("DATABASE_URL", "sqlite:///./app.db")
     connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
     return create_engine(db_url, connect_args=connect_args)
+
 
 engine = get_engine()
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
@@ -66,4 +77,3 @@ def get_sessionmaker() -> sessionmaker:
 def init_db() -> None:
     """Create database tables if they do not exist."""
     Base.metadata.create_all(bind=engine)
-
