@@ -1,8 +1,25 @@
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
-
 from app.routes import calls  # noqa
 from app.logging_config import logger
+
+app = FastAPI(title="Voice Agent PoC")
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+
+@app.post("/call/outbound")
+def outbound_call():
+    # Placeholder implementation
+    return {"message": "Outbound call initiated"}
+
+
+@app.post("/call/inbound")
+def inbound_call():
+    # Placeholder implementation
+    return {"message": "Inbound call received"}
 
 
 def create_app() -> FastAPI:
