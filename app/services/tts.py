@@ -5,10 +5,11 @@ import requests
 
 
 class TTSClient:
-    """Text-to-speech client supporting ElevenLabs and Twilio."""
+    """Text-to-speech client supporting ElevenLabs and Twilio, with optional locale."""
 
-    def __init__(self, provider: Optional[str] = None) -> None:
+    def __init__(self, provider: Optional[str] = None, locale: Optional[str] = None) -> None:
         self.provider = (provider or os.getenv("TTS_PROVIDER", "elevenlabs")).lower()
+        self.locale = locale or os.getenv("DEFAULT_LOCALE", "en-US")
         if self.provider == "elevenlabs":
             self._api_key = os.getenv("ELEVEN_API_KEY")
             if not self._api_key:
@@ -36,7 +37,8 @@ class TTSClient:
             return response.content
         elif self.provider == "twilio":
             vr = self._VoiceResponse()
-            vr.say(text, voice=self._voice)
+            # include locale to select appropriate language voice
+            vr.say(text, voice=self._voice, language=self.locale)
             return str(vr).encode()
         raise RuntimeError("Unhandled TTS provider")
 

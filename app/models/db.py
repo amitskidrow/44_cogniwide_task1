@@ -14,6 +14,7 @@ class Conversation(Base):
     id = Column(Integer, primary_key=True)
     phone = Column(String(20))
     direction = Column(Enum("INBOUND", "OUTBOUND", name="direction_enum"))
+    locale = Column(String(10), default="en-US")
     start_ts = Column(DateTime)
     end_ts = Column(DateTime)
     transcript = Column(Text)
