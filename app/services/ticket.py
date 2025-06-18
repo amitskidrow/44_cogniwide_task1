@@ -1,11 +1,12 @@
 from datetime import datetime
+from sqlalchemy.orm import Session
 from app.models.db import SessionLocal, Ticket
 
 
 class TicketService:
     """Service for creating support tickets."""
 
-    def __init__(self, session: SessionLocal | None = None) -> None:
+    def __init__(self, session: Session | None = None) -> None:
         self.session = session or SessionLocal()
 
     def create_ticket(self, conversation_id: int, category: str) -> Ticket:
