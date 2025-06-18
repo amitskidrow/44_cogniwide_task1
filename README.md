@@ -70,3 +70,27 @@ python scripts/manage.py delete-ticket <ticket_id>
 ```
 
 Replace the placeholders with the numeric IDs to delete.
+
+## TLS for webhook endpoints
+
+Webhook requests can be served over HTTPS by running Uvicorn with a certificate.
+Generate a self‑signed certificate using the helper script:
+
+```bash
+scripts/generate_self_signed_cert.sh
+```
+
+Start the app with SSL enabled:
+
+```bash
+uvicorn app.main:app \
+    --host 0.0.0.0 --port 8443 \
+    --ssl-keyfile certs/key.pem --ssl-certfile certs/cert.pem
+```
+
+## Monitoring dashboard
+
+`docker-compose.yml` includes Prometheus and Grafana services. Once the stack is
+running, Prometheus scrapes metrics from the API and Grafana is available at
+[http://localhost:3000](http://localhost:3000) (default credentials admin/admin)
+to visualize them.
