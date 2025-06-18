@@ -12,6 +12,12 @@ Run the following command from the project root:
 docker compose up --build
 ```
 
+For local development without Docker, run:
+
+```bash
+uvicorn app.main:app --reload
+```
+
 The API will be available at [http://localhost:8000](http://localhost:8000). Swagger UI can be accessed at [http://localhost:8000/docs](http://localhost:8000/docs).
 
 The database data is stored in the `db_data` Docker volume declared in `docker-compose.yml`.
