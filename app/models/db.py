@@ -44,6 +44,16 @@ class Ticket(Base):
     conversation = relationship("Conversation", back_populates="tickets")
 
 
+class ProcessedWebhook(Base):
+    """Track processed inbound webhook request IDs."""
+
+    __tablename__ = "processed_webhooks"
+
+    id = Column(Integer, primary_key=True)
+    request_id = Column(String(100), unique=True, nullable=False)
+
+
+
 def get_engine() -> 'Engine':
     """Create a SQLAlchemy engine.
 

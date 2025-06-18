@@ -10,7 +10,7 @@ from app.services.telephony import TelephonyService
 from app.services.tts import TTSClient
 from app.services.stt import STTClient
 from app.services.intent import IntentClassifier
-from app.models.db import SessionLocal, Conversation, Ticket
+from app.models.db import SessionLocal, Conversation, Ticket, ProcessedWebhook
 from datetime import datetime
 
 router = APIRouter()
@@ -58,6 +58,7 @@ async def call_outbound(payload: OutboundCallRequest):
 
 
 class InboundCallRequest(BaseModel):
+    request_id: str
     phone: str
     recording_url: str
     locale: Optional[str] = "en-US"
@@ -66,6 +67,15 @@ class InboundCallRequest(BaseModel):
 @router.post("/webhook/twilio")
 async def inbound_twilio(payload: InboundCallRequest):
     session = SessionLocal()
+    # Idempotency check for repeated webhooks
+    existing = session.query(ProcessedWebhook).filter(
+        ProcessedWebhook.request_id == payload.request_id
+    ).first()
+    if existing:
+        return {"status": "duplicate"}
+
+    session.add(ProcessedWebhook(request_id=payload.request_id))
+    session.commit()
     conv = Conversation(
         phone=payload.phone,
         direction="INBOUND",
