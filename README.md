@@ -42,3 +42,14 @@ Default values are provided in `docker-compose.yml`, but you can override them u
 ├── requirements.txt   # Python dependencies
 └── PRD.md             # Product requirements
 ```
+
+## Deleting records
+You can remove stored conversations or tickets using the management script. It
+uses the same `DATABASE_URL` environment variable as the web service.
+
+```bash
+python scripts/manage.py delete-conversation <conversation_id>
+python scripts/manage.py delete-ticket <ticket_id>
+```
+
+Replace the placeholders with the numeric IDs to delete.
