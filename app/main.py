@@ -5,6 +5,7 @@ load_dotenv()
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 from app.routes.calls import router as calls_router
+from app.routes.config import router as config_router
 from app.logging_config import logger
 from app.models.db import init_db
 
@@ -19,6 +20,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(calls_router)
+    app.include_router(config_router)
 
     Instrumentator().instrument(app).expose(app)
 

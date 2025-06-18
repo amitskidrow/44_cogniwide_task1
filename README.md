@@ -22,6 +22,11 @@ The API will be available at [http://localhost:8000](http://localhost:8000). Swa
 
 The database data is stored in the `db_data` Docker volume declared in `docker-compose.yml`.
 
+## Locale configuration
+The application uses a configurable default locale for speech services. The
+current value is stored in `app/config.json` and can be retrieved or updated via
+the `/config/locale` API endpoints.
+
 ## Environment variables
 The web service reads the following environment variables to connect to the database:
 

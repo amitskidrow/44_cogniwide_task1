@@ -10,6 +10,7 @@ from app.services.telephony import TelephonyService
 from app.services.tts import TTSClient
 from app.services.stt import STTClient
 from app.services.intent import IntentClassifier
+from app.config import get_default_locale
 from app.models.db import SessionLocal, Conversation, Ticket
 from datetime import datetime
 
@@ -20,30 +21,31 @@ class OutboundCallRequest(BaseModel):
     phone: str
     prompt: str
     metadata: Optional[Dict[str, Any]] = None
-    locale: Optional[str] = "en-US"
+    locale: Optional[str] = None
 
 
 @router.post("/call/outbound")
 async def call_outbound(payload: OutboundCallRequest):
+    locale = payload.locale or get_default_locale()
     telephony = TelephonyService()
     await telephony.start_outbound_call(payload.phone, payload.prompt, payload.metadata)
     session = SessionLocal()
     conv = Conversation(
         phone=payload.phone,
         direction="OUTBOUND",
-        locale=payload.locale,
+        locale=locale,
         start_ts=datetime.utcnow()
     )
     session.add(conv)
     session.commit()
 
-    tts = TTSClient(locale=payload.locale)
+    tts = TTSClient(locale=locale)
     audio_bytes = tts.synthesize(payload.prompt)
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
         tmp.write(audio_bytes)
         audio_path = tmp.name
 
-    stt = STTClient(locale=payload.locale)
+    stt = STTClient(locale=locale)
     transcript = stt.transcribe(audio_path)
     intent = IntentClassifier().classify(transcript)
 
@@ -60,16 +62,17 @@ async def call_outbound(payload: OutboundCallRequest):
 class InboundCallRequest(BaseModel):
     phone: str
     recording_url: str
-    locale: Optional[str] = "en-US"
+    locale: Optional[str] = None
 
 
 @router.post("/webhook/twilio")
 async def inbound_twilio(payload: InboundCallRequest):
+    locale = payload.locale or get_default_locale()
     session = SessionLocal()
     conv = Conversation(
         phone=payload.phone,
         direction="INBOUND",
-        locale=payload.locale,
+        locale=locale,
         start_ts=datetime.utcnow()
     )
     session.add(conv)
@@ -80,7 +83,7 @@ async def inbound_twilio(payload: InboundCallRequest):
         tmp.write(response.content)
         audio_path = tmp.name
 
-    stt = STTClient(locale=payload.locale)
+    stt = STTClient(locale=locale)
     transcript = stt.transcribe(audio_path)
     intent = IntentClassifier().classify(transcript)
 

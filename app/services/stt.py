@@ -1,13 +1,15 @@
 import os
 from typing import Optional
 
+from app.config import get_default_locale
+
 
 class STTClient:
     """Speech-to-text client supporting OpenAI Whisper and Deepgram, with optional locale."""
 
     def __init__(self, provider: Optional[str] = None, locale: Optional[str] = None) -> None:
         self.provider = (provider or os.getenv("STT_PROVIDER", "openai")).lower()
-        self.locale = locale or os.getenv("DEFAULT_LOCALE", "en-US")
+        self.locale = locale or os.getenv("DEFAULT_LOCALE") or get_default_locale()
         if self.provider == "openai":
             try:
                 import openai

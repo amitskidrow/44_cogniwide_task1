@@ -1,6 +1,8 @@
 import os
 from typing import Optional
 
+from app.config import get_default_locale
+
 import requests
 
 
@@ -9,7 +11,7 @@ class TTSClient:
 
     def __init__(self, provider: Optional[str] = None, locale: Optional[str] = None) -> None:
         self.provider = (provider or os.getenv("TTS_PROVIDER", "elevenlabs")).lower()
-        self.locale = locale or os.getenv("DEFAULT_LOCALE", "en-US")
+        self.locale = locale or os.getenv("DEFAULT_LOCALE") or get_default_locale()
         if self.provider == "elevenlabs":
             self._api_key = os.getenv("ELEVEN_API_KEY")
             if not self._api_key:
