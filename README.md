@@ -36,3 +36,10 @@ Default values are provided in `docker-compose.yml`, but you can override them u
 ├── requirements.txt   # Python dependencies
 └── PRD.md             # Product requirements
 ```
+
+## API Endpoints
+
+- `POST /call/outbound` – initiate an outbound call.
+- `POST /call/inbound` – receive inbound call events.
+- `GET /conversation/{id}` – fetch a stored conversation and its tickets.
+- `GET /health` – application health probe.
