@@ -1,11 +1,7 @@
 from typing import Optional, Dict, Any, List
-import tempfile
-
-import requests
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from app.logging_config import logger
 from app.services.telephony import TelephonyService
 from app.services.tts import TTSClient
 from app.services.stt import STTClient
@@ -74,42 +70,28 @@ async def inbound_twilio(payload: InboundCallRequest):
         direction="INBOUND",
         locale=locale,
         start_ts=datetime.utcnow()
+
     )
     session.add(conv)
     session.commit()
 
-    response = requests.get(payload.recording_url)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-        tmp.write(response.content)
-        audio_path = tmp.name
+    return {"conversation_id": conv.id, "call_sid": result.get("sid")}
 
     stt = STTClient(locale=locale)
     transcript = stt.transcribe(audio_path)
     intent = IntentClassifier().classify(transcript)
 
-    conv.transcript = transcript
-    conv.intents = [intent]
-    conv.end_ts = datetime.utcnow()
-    conv.status = "OPEN"
-    session.add(conv)
-    session.commit()
-
-    if intent != "LIVE_AGENT":
-        ticket = Ticket(
-            conversation_id=conv.id,
-            category=intent,
-            status="OPEN",
-            created_ts=datetime.utcnow()
-        )
-        session.add(ticket)
-        session.commit()
-        return {"ticket_id": ticket.id, "status": "ticket_created", "intent": intent}
-
-    return {"status": "handoff", "message": "Routed to live agent simulator"}
+@router.post("/webhook/twilio")
+async def inbound_twilio(request: Request) -> Response:
+    form = await request.form()
+    event = dict(form)
+    telephony = TelephonyService()
+    twiml = await telephony.handle_inbound_call(event)
+    return Response(content=twiml, media_type="application/xml")
 
 @router.post("/webhook/vapi")
-async def inbound_vapi(payload: InboundCallRequest):
-    return await inbound_twilio(payload)
+async def inbound_vapi(request: Request) -> Response:
+    return await inbound_twilio(request)
 
 class TicketResponse(BaseModel):
     id: int
