@@ -31,6 +31,12 @@ The web service reads the following environment variables to connect to the data
 - `DB_PASSWORD`
 - `DB_NAME`
 
+For telephony integration the following Twilio credentials are required:
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_CALLER_ID`
+- `TWILIO_STREAM_URL` (optional)
+
 Default values are provided in `docker-compose.yml`, but you can override them using a `.env` file or by exporting them before running Compose.
 
 ## Project structure

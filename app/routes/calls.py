@@ -1,16 +1,9 @@
 from typing import Optional, Dict, Any, List
-import tempfile
-
-import requests
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from app.logging_config import logger
 from app.services.telephony import TelephonyService
-from app.services.tts import TTSClient
-from app.services.stt import STTClient
-from app.services.intent import IntentClassifier
-from app.models.db import SessionLocal, Conversation, Ticket
+from app.models.db import SessionLocal, Conversation
 from datetime import datetime
 
 router = APIRouter()
@@ -26,87 +19,35 @@ class OutboundCallRequest(BaseModel):
 @router.post("/call/outbound")
 async def call_outbound(payload: OutboundCallRequest):
     telephony = TelephonyService()
-    await telephony.start_outbound_call(payload.phone, payload.prompt, payload.metadata)
+    result = await telephony.start_outbound_call(
+        payload.phone, payload.prompt, payload.metadata
+    )
+
     session = SessionLocal()
     conv = Conversation(
         phone=payload.phone,
         direction="OUTBOUND",
         locale=payload.locale,
-        start_ts=datetime.utcnow()
+        start_ts=datetime.utcnow(),
+        status="OPEN",
     )
     session.add(conv)
     session.commit()
 
-    tts = TTSClient(locale=payload.locale)
-    audio_bytes = tts.synthesize(payload.prompt)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-        tmp.write(audio_bytes)
-        audio_path = tmp.name
-
-    stt = STTClient(locale=payload.locale)
-    transcript = stt.transcribe(audio_path)
-    intent = IntentClassifier().classify(transcript)
-
-    conv.transcript = transcript
-    conv.intents = [intent]
-    conv.end_ts = datetime.utcnow()
-    conv.status = "CLOSED"
-    session.add(conv)
-    session.commit()
-
-    return {"conversation_id": conv.id, "intent": intent}
-
-
-class InboundCallRequest(BaseModel):
-    phone: str
-    recording_url: str
-    locale: Optional[str] = "en-US"
+    return {"conversation_id": conv.id, "call_sid": result.get("sid")}
 
 
 @router.post("/webhook/twilio")
-async def inbound_twilio(payload: InboundCallRequest):
-    session = SessionLocal()
-    conv = Conversation(
-        phone=payload.phone,
-        direction="INBOUND",
-        locale=payload.locale,
-        start_ts=datetime.utcnow()
-    )
-    session.add(conv)
-    session.commit()
-
-    response = requests.get(payload.recording_url)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-        tmp.write(response.content)
-        audio_path = tmp.name
-
-    stt = STTClient(locale=payload.locale)
-    transcript = stt.transcribe(audio_path)
-    intent = IntentClassifier().classify(transcript)
-
-    conv.transcript = transcript
-    conv.intents = [intent]
-    conv.end_ts = datetime.utcnow()
-    conv.status = "OPEN"
-    session.add(conv)
-    session.commit()
-
-    if intent != "LIVE_AGENT":
-        ticket = Ticket(
-            conversation_id=conv.id,
-            category=intent,
-            status="OPEN",
-            created_ts=datetime.utcnow()
-        )
-        session.add(ticket)
-        session.commit()
-        return {"ticket_id": ticket.id, "status": "ticket_created", "intent": intent}
-
-    return {"status": "handoff", "message": "Routed to live agent simulator"}
+async def inbound_twilio(request: Request) -> Response:
+    form = await request.form()
+    event = dict(form)
+    telephony = TelephonyService()
+    twiml = await telephony.handle_inbound_call(event)
+    return Response(content=twiml, media_type="application/xml")
 
 @router.post("/webhook/vapi")
-async def inbound_vapi(payload: InboundCallRequest):
-    return await inbound_twilio(payload)
+async def inbound_vapi(request: Request) -> Response:
+    return await inbound_twilio(request)
 
 class TicketResponse(BaseModel):
     id: int

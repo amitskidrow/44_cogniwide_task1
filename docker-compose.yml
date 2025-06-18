@@ -20,6 +20,10 @@ services:
       DB_USER: user
       DB_PASSWORD: password
       DB_NAME: voice_agent
+      TWILIO_ACCOUNT_SID: your_sid
+      TWILIO_AUTH_TOKEN: your_token
+      TWILIO_CALLER_ID: "+10000000000"
+      TWILIO_STREAM_URL: "wss://example.com/stream"
     depends_on:
       - db
 
