@@ -43,13 +43,27 @@ class Ticket(Base):
     conversation = relationship("Conversation", back_populates="tickets")
 
 
-def get_engine() -> 'Engine':
-    """Create a SQLAlchemy engine.
+def _build_database_url() -> str:
+    """Assemble a connection URL from individual DB_* variables if provided."""
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        return db_url
 
-    Uses the DATABASE_URL environment variable if set. Falls back to
-    SQLite file database for local development.
-    """
-    db_url = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+    host = os.getenv("DB_HOST")
+    port = os.getenv("DB_PORT")
+    user = os.getenv("DB_USER")
+    password = os.getenv("DB_PASSWORD")
+    name = os.getenv("DB_NAME")
+
+    if all([host, port, user, password, name]):
+        return f"postgresql://{user}:{password}@{host}:{port}/{name}"
+
+    return "sqlite:///./app.db"
+
+
+def get_engine() -> "Engine":
+    """Create a SQLAlchemy engine, defaulting to a local SQLite DB."""
+    db_url = _build_database_url()
     connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
     return create_engine(db_url, connect_args=connect_args)
 
@@ -60,6 +74,15 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 def get_sessionmaker() -> sessionmaker:
     """Return a configured sessionmaker bound to the engine."""
     return SessionLocal
+
+
+def get_db():
+    """Yield a SQLAlchemy session for request handlers."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 def init_db() -> None:

@@ -26,6 +26,7 @@ The web service reads the following environment variables to connect to the data
 - `DB_NAME`
 
 Default values are provided in `docker-compose.yml`, but you can override them using a `.env` file or by exporting them before running Compose.
+If `DATABASE_URL` is not explicitly set, it will be assembled from the variables above at runtime.
 
 ## Project structure
 ```
