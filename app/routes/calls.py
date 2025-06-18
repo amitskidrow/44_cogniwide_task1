@@ -12,9 +12,14 @@ class OutboundCallRequest(BaseModel):
 
 @router.post("/call/outbound")
 async def call_outbound(payload: OutboundCallRequest):
-    logger.bind(intent="OUTBOUND_CALL", phone=payload.phone).info("start")
+    ctx = {
+        "phone_number": payload.phone,
+        "intent": "OUTBOUND_CALL",
+        "conversation_id": None,
+    }
+    logger.bind(**ctx).info("call_outbound.start")
     # Placeholder for outbound call initiation logic
-    logger.bind(intent="OUTBOUND_CALL", phone=payload.phone).info("end")
+    logger.bind(**ctx).info("call_outbound.end")
     return {"status": "initiated"}
 
 
@@ -25,7 +30,12 @@ class IntentPayload(BaseModel):
 
 @router.post("/webhook/twilio")
 async def inbound_twilio(payload: IntentPayload):
-    logger.bind(intent=payload.intent).info("start")
+    ctx = {
+        "phone_number": None,
+        "intent": payload.intent,
+        "conversation_id": None,
+    }
+    logger.bind(**ctx).info("inbound_twilio.start")
     # Placeholder for inbound call handling logic
-    logger.bind(intent=payload.intent).info("end")
+    logger.bind(**ctx).info("inbound_twilio.end")
     return {"status": "received"}

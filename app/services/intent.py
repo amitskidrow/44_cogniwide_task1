@@ -1,6 +1,8 @@
 import os
 import openai
 
+from app.logging_config import logger
+
 
 class IntentClassifier:
     """Simple intent classifier using OpenAI chat-completion API."""
@@ -12,8 +14,10 @@ class IntentClassifier:
             raise ValueError("OPENAI_API_KEY environment variable not set")
         openai.api_key = self.api_key
 
-    def classify(self, text: str) -> str:
+    def classify(self, text: str, conversation_id: str | None = None) -> str:
         """Return intent label for the given text."""
+        ctx = {"conversation_id": conversation_id}
+        logger.bind(**ctx).info("classify.start")
         system_prompt = (
             "You are an intent classifier.\n"
             "Possible intents: SCHEDULE_CALLBACK, RESOLVE_ISSUE, OTHER.\n"
@@ -28,4 +32,5 @@ class IntentClassifier:
             messages=messages,
         )
         intent = response["choices"][0]["message"]["content"].strip().upper()
+        logger.bind(**ctx, intent=intent).info("classify.end")
         return intent

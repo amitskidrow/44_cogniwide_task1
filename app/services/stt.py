@@ -1,6 +1,8 @@
 import os
 from typing import Optional
 
+from app.logging_config import logger
+
 
 class STTClient:
     """Speech-to-text client supporting OpenAI Whisper and Deepgram."""
@@ -30,17 +32,24 @@ class STTClient:
         else:
             raise ValueError(f"Unsupported STT provider: {self.provider}")
 
-    def transcribe(self, audio_path: str) -> str:
+    def transcribe(self, audio_path: str, conversation_id: str | None = None) -> str:
         """Transcribe audio file located at ``audio_path`` and return text."""
+        ctx = {"conversation_id": conversation_id}
+        logger.bind(**ctx).info("transcribe.start")
+
         if self.provider == "openai":
             with open(audio_path, "rb") as fh:
                 response = self._client.Audio.transcribe(self._model, fh)
-            return response.get("text", "")
+            text = response.get("text", "")
         elif self.provider == "deepgram":
             with open(audio_path, "rb") as fh:
                 source = {"buffer": fh.read(), "mimetype": "audio/wav"}
             options = {"model": self._model}
             response = self._client.transcription.sync_prerecorded(source, options)
-            return response["results"]["channels"][0]["alternatives"][0]["transcript"]
-        raise RuntimeError("Unhandled STT provider")
+            text = response["results"]["channels"][0]["alternatives"][0]["transcript"]
+        else:
+            raise RuntimeError("Unhandled STT provider")
+
+        logger.bind(**ctx).info("transcribe.end")
+        return text
 

@@ -1,6 +1,8 @@
 import os
 from typing import Optional
 
+from app.logging_config import logger
+
 import requests
 
 
@@ -25,18 +27,25 @@ class TTSClient:
         else:
             raise ValueError(f"Unsupported TTS provider: {self.provider}")
 
-    def synthesize(self, text: str) -> bytes:
+    def synthesize(self, text: str, conversation_id: str | None = None) -> bytes:
         """Generate speech audio for ``text``. Returns bytes or TwiML XML."""
+        ctx = {"conversation_id": conversation_id}
+        logger.bind(**ctx).info("synthesize.start")
+
         if self.provider == "elevenlabs":
             url = f"https://api.elevenlabs.io/v1/text-to-speech/{self._voice_id}"
             headers = {"xi-api-key": self._api_key}
             payload = {"text": text, "model_id": self._model_id}
             response = requests.post(url, json=payload, headers=headers)
             response.raise_for_status()
-            return response.content
+            audio = response.content
         elif self.provider == "twilio":
             vr = self._VoiceResponse()
             vr.say(text, voice=self._voice)
-            return str(vr).encode()
-        raise RuntimeError("Unhandled TTS provider")
+            audio = str(vr).encode()
+        else:
+            raise RuntimeError("Unhandled TTS provider")
+
+        logger.bind(**ctx).info("synthesize.end")
+        return audio
 
