@@ -17,7 +17,7 @@ class Conversation(Base):
     locale = Column(String(10), default="en-US")
     start_ts = Column(DateTime)
     end_ts = Column(DateTime)
-    transcript = Column(Text)
+    transcript = Column(Text, default="")
     intents = Column(JSON)
     status = Column(Enum("OPEN", "CLOSED", name="conversation_status"), default="OPEN")
 

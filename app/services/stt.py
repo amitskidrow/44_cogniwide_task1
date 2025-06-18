@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Optional, Iterable, Dict, Any
 
 
 class STTClient:
@@ -45,4 +45,24 @@ class STTClient:
             response = self._client.transcription.sync_prerecorded(source, options)
             return response["results"]["channels"][0]["alternatives"][0]["transcript"]
         raise RuntimeError("Unhandled STT provider")
+
+    def extract_event_transcript(self, event: Dict[str, Any]) -> Optional[str]:
+        """Return transcript text from a streaming event if present."""
+        if not isinstance(event, dict):
+            return None
+        if "transcript" in event:
+            return str(event["transcript"]).strip()
+        if "text" in event:
+            return str(event["text"]).strip()
+        media = event.get("media", {})
+        if isinstance(media, dict) and "transcript" in media:
+            return str(media["transcript"]).strip()
+        return None
+
+    def stream_transcribe(self, events: Iterable[Dict[str, Any]]):
+        """Yield transcript fragments from a sequence of streaming events."""
+        for evt in events:
+            text = self.extract_event_transcript(evt)
+            if text:
+                yield text
 

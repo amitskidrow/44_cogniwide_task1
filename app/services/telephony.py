@@ -14,6 +14,7 @@ class TelephonyService:
         return {
             "status": "started",
             "provider": "twilio/vapi",
+            "call_id": "dummy",
             "phone_number": phone_number,
             "prompt": prompt,
             "metadata": metadata or {},
