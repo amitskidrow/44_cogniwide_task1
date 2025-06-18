@@ -1,5 +1,6 @@
-import os
 from typing import Optional
+
+from app.config import get_settings
 
 import requests
 
@@ -8,19 +9,20 @@ class TTSClient:
     """Text-to-speech client supporting ElevenLabs and Twilio."""
 
     def __init__(self, provider: Optional[str] = None) -> None:
-        self.provider = (provider or os.getenv("TTS_PROVIDER", "elevenlabs")).lower()
+        settings = get_settings()
+        self.provider = (provider or settings.tts_provider).lower()
         if self.provider == "elevenlabs":
-            self._api_key = os.getenv("ELEVEN_API_KEY")
+            self._api_key = settings.eleven_api_key
             if not self._api_key:
                 raise ValueError("ELEVEN_API_KEY not set")
-            self._voice_id = os.getenv("ELEVEN_VOICE_ID", "default")
-            self._model_id = os.getenv("ELEVEN_MODEL_ID", "eleven_multilingual_v2")
+            self._voice_id = settings.eleven_voice_id
+            self._model_id = settings.eleven_model_id
         elif self.provider == "twilio":
             try:
                 from twilio.twiml.voice_response import VoiceResponse
             except ImportError as e:
                 raise ImportError("twilio package required for Twilio TTS") from e
-            self._voice = os.getenv("TWILIO_TTS_VOICE", "Polly.Joanna")
+            self._voice = settings.twilio_tts_voice
             self._VoiceResponse = VoiceResponse
         else:
             raise ValueError(f"Unsupported TTS provider: {self.provider}")

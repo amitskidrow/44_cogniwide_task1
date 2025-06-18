@@ -1,20 +1,22 @@
-import os
 from typing import Optional
+
+from app.config import get_settings
 
 
 class STTClient:
     """Speech-to-text client supporting OpenAI Whisper and Deepgram."""
 
     def __init__(self, provider: Optional[str] = None) -> None:
-        self.provider = (provider or os.getenv("STT_PROVIDER", "openai")).lower()
+        settings = get_settings()
+        self.provider = (provider or settings.stt_provider).lower()
         if self.provider == "openai":
             try:
                 import openai
             except ImportError as e:
                 raise ImportError("openai package required for Whisper STT") from e
             self._client = openai
-            self._model = os.getenv("OPENAI_WHISPER_MODEL", "whisper-1")
-            self._api_key = os.getenv("OPENAI_API_KEY")
+            self._model = settings.openai_whisper_model
+            self._api_key = settings.openai_api_key
             if self._api_key:
                 self._client.api_key = self._api_key
         elif self.provider == "deepgram":
@@ -22,11 +24,11 @@ class STTClient:
                 from deepgram import Deepgram
             except ImportError as e:
                 raise ImportError("deepgram-sdk package required for Deepgram STT") from e
-            self._api_key = os.getenv("DEEPGRAM_API_KEY")
+            self._api_key = settings.deepgram_api_key
             if not self._api_key:
                 raise ValueError("DEEPGRAM_API_KEY not set")
             self._client = Deepgram(self._api_key)
-            self._model = os.getenv("DEEPGRAM_MODEL", "general")
+            self._model = settings.deepgram_model
         else:
             raise ValueError(f"Unsupported STT provider: {self.provider}")
 

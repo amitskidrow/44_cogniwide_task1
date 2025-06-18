@@ -1,13 +1,15 @@
-import os
 import openai
+
+from app.config import get_settings
 
 
 class IntentClassifier:
     """Simple intent classifier using OpenAI chat-completion API."""
 
     def __init__(self, model: str | None = None):
-        self.model = model or os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-        self.api_key = os.getenv("OPENAI_API_KEY")
+        settings = get_settings()
+        self.model = model or settings.openai_model
+        self.api_key = settings.openai_api_key
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
         openai.api_key = self.api_key

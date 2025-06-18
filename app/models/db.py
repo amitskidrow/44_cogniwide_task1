@@ -1,4 +1,4 @@
-import os
+from app.config import get_settings
 from sqlalchemy import (
     create_engine, Column, Integer, String, Enum, DateTime, ForeignKey, Text, JSON
 )
@@ -46,10 +46,11 @@ class Ticket(Base):
 def get_engine() -> 'Engine':
     """Create a SQLAlchemy engine.
 
-    Uses the DATABASE_URL environment variable if set. Falls back to
-    SQLite file database for local development.
+    Database URL is loaded from :class:`Settings`.
+    Falls back to SQLite for local development.
     """
-    db_url = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+    settings = get_settings()
+    db_url = settings.database_url
     connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
     return create_engine(db_url, connect_args=connect_args)
 

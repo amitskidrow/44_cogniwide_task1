@@ -17,15 +17,9 @@ The API will be available at [http://localhost:8000](http://localhost:8000). Swa
 The database data is stored in the `db_data` Docker volume declared in `docker-compose.yml`.
 
 ## Environment variables
-The web service reads the following environment variables to connect to the database:
-
-- `DB_HOST`
-- `DB_PORT`
-- `DB_USER`
-- `DB_PASSWORD`
-- `DB_NAME`
-
-Default values are provided in `docker-compose.yml`, but you can override them using a `.env` file or by exporting them before running Compose.
+Configuration values are loaded via `pydantic.BaseSettings` from a `.env` file.
+Copy `.env.example` to `.env` and set the required variables (API keys and
+`DATABASE_URL`) before starting the application.
 
 ## Project structure
 ```
