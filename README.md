@@ -27,6 +27,12 @@ The application uses a configurable default locale for speech services. The
 current value is stored in `app/config.json` and can be retrieved or updated via
 the `/config/locale` API endpoints.
 
+## Inbound call processing
+Recorded inbound calls can be submitted to `/call/inbound` with a JSON payload
+containing the caller phone number and a URL to the audio recording. The service
+will transcribe the audio, classify the intent and create a ticket when
+appropriate.
+
 ## Environment variables
 The web service reads the following environment variables to connect to the database:
 

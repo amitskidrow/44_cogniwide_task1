@@ -1,4 +1,6 @@
 from typing import Optional, Dict, Any, List
+import tempfile
+import requests
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
@@ -6,8 +8,10 @@ from app.services.telephony import TelephonyService
 from app.services.tts import TTSClient
 from app.services.stt import STTClient
 from app.services.intent import IntentClassifier
+from app.services.ticket import TicketService
+from app.services.live_agent import LiveAgentSimulator
 from app.config import get_default_locale
-from app.models.db import SessionLocal, Conversation, Ticket
+from app.models.db import SessionLocal, Conversation
 from datetime import datetime
 
 router = APIRouter()
@@ -61,25 +65,45 @@ class InboundCallRequest(BaseModel):
     locale: Optional[str] = None
 
 
-@router.post("/webhook/twilio")
-async def inbound_twilio(payload: InboundCallRequest):
+@router.post("/call/inbound")
+async def inbound_call(payload: InboundCallRequest):
+    """Process a completed inbound call recording."""
     locale = payload.locale or get_default_locale()
     session = SessionLocal()
     conv = Conversation(
         phone=payload.phone,
         direction="INBOUND",
         locale=locale,
-        start_ts=datetime.utcnow()
-
+        start_ts=datetime.utcnow(),
     )
     session.add(conv)
     session.commit()
 
-    return {"conversation_id": conv.id, "call_sid": result.get("sid")}
+    audio_resp = requests.get(payload.recording_url)
+    audio_resp.raise_for_status()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        tmp.write(audio_resp.content)
+        audio_path = tmp.name
 
     stt = STTClient(locale=locale)
     transcript = stt.transcribe(audio_path)
     intent = IntentClassifier().classify(transcript)
+
+    conv.transcript = transcript
+    conv.intents = [intent]
+    conv.end_ts = datetime.utcnow()
+    conv.status = "CLOSED"
+    session.add(conv)
+    session.commit()
+
+    ticket_id: int | None = None
+    if intent != "LIVE_AGENT":
+        ticket = TicketService(session).create_ticket(conv.id, intent)
+        ticket_id = ticket.id
+    else:
+        LiveAgentSimulator().handoff(conv.id)
+
+    return {"conversation_id": conv.id, "intent": intent, "ticket_id": ticket_id}
 
 @router.post("/webhook/twilio")
 async def inbound_twilio(request: Request) -> Response:
